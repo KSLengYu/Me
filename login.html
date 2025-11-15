@@ -4,24 +4,53 @@
 <meta charset="UTF-8">
 <title>登录</title>
 <style>
-    body {
-        background: #fafafa;
-        padding: 20px;
-        font-family: Arial;
-    }
-    input { padding: 10px; width: 100%; margin-top: 15px; border-radius: 6px; border: 1px solid #ccc; }
-    button { margin-top: 15px; padding: 10px; width: 100%; background: #4a90e2; border: none; color: white; border-radius: 6px; }
+body {
+  margin: 0;
+  background: #111;
+  color: #fff;
+  font-family: Arial;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+.box {
+  width: 300px;
+  padding: 20px;
+  background: #222;
+  border-radius: 10px;
+}
+input {
+  width: 100%;
+  padding: 10px;
+  margin-top: 10px;
+  border: none;
+  border-radius: 6px;
+}
+button {
+  width: 100%;
+  padding: 10px;
+  background: #0084ff;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+button:disabled {
+  background: #555;
+}
 </style>
 </head>
+
 <body>
+<div class="box">
+  <h2>邮箱登录</h2>
+  <input id="email" placeholder="输入邮箱">
+  <button id="send">获取验证码</button>
 
-<h2>邮箱验证码登录</h2>
-
-<input id="email" placeholder="你的邮箱">
-<input id="code" placeholder="验证码">
-
-<button onclick="sendCode()">获取验证码</button>
-<button onclick="login()">登录</button>
+  <input id="code" placeholder="输入验证码" style="margin-top:20px;">
+  <button id="login">登录</button>
+</div>
 
 <script src="app.js"></script>
 </body>
