@@ -30,14 +30,14 @@ function createTransporter(account) {
 
 export default async function handler(req, res) {
   if (req.method !== "GET") {
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ ok: false, error: "Method not allowed" });
   }
 
   const email = req.query.email;
-  if (!email) return res.status(400).json({ error: "Email required" });
+  if (!email) return res.status(400).json({ ok: false, error: "Email required" });
 
   const code = Math.floor(100000 + Math.random() * 900000).toString();
-  console.log("Sending Code:", code);
+  console.log(`Sending code ${code} to ${email}`);
 
   try {
     const account = pickRandomAccount();
@@ -50,13 +50,19 @@ export default async function handler(req, res) {
       text: `你的验证码是：${code}，有效期 5 分钟`,
     });
 
-    // 临时存储 code
     globalThis.codes = globalThis.codes || {};
     globalThis.codes[email] = code;
 
-    res.json({ ok: true });
+    console.log(`Email sent successfully via ${account.user}`);
+    res.status(200).json({ ok: true });
+
   } catch (err) {
-    console.log(err);
-    res.status(500).json({ error: "Send failed" });
+    console.error("SMTP send error:", err);
+
+    // 无论何种错误，都返回 JSON，避免前端解析失败
+    res.status(500).json({
+      ok: false,
+      error: "Send failed: " + (err.message || "Unknown error")
+    });
   }
 }
