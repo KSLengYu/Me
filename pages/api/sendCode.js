@@ -1,75 +1,92 @@
-import nodemailer from "nodemailer";
-import { createClient } from "@supabase/supabase-js";
+// pages/api/sendCode.js
+import nodemailer from 'nodemailer';
+import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = "你的 supabase url";
-const SUPABASE_KEY = "你的 supabase anon key";
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY; // prefer service key
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// 连接数据库
-const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+// 从环境变量构造邮箱池（支持多网易 + QQ 等）
+function buildEmailPool() {
+  const pool = [];
+  for (let i = 1; i <= 10; i++) { // 支持最多配置 10 个 MAIL_USER_N
+    const user = process.env[`MAIL_USER_${i}`];
+    const pass = process.env[`MAIL_PASS_${i}`];
+    if (user && pass) {
+      // 推断 SMTP host（常见网易 / qq / gmail）
+      let host = 'smtp.163.com';
+      if (user.endsWith('@qq.com')) host = 'smtp.qq.com';
+      else if (user.endsWith('@gmail.com')) host = 'smtp.gmail.com';
+      pool.push({ user, pass, host });
+    }
+  }
+  return pool;
+}
 
-// 你的邮箱池（随机自动使用）
-const emailPool = [
-  { user: "lengyuxh2@163.com", pass: "YXCHz3AyKbeXds6b" },
-  { user: "lengyuxh1@163.com", pass: "FLCTw899QMDtwskN" },
-  { user: "LengYuTTKX@163.com", pass: "QKCWpezFfvb6xCEr" },
-  { user: "oklejiarenmen@163.com", pass: "BTCaGZFJeSC6ptxN" },
-  { user: "ly666ccb@163.com", pass: "JECf37iN8Ugik6dJ" },
-
-  // QQ 邮箱（如果你之后补密码我也能加）
-  // { user: "xxx@qq.com", pass: "你的授权码" },
-];
-
-/**
- * 获取一个随机邮箱
- */
-function getRandomEmail() {
-  const index = Math.floor(Math.random() * emailPool.length);
-  return emailPool[index];
+function pickRandom(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
 }
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ msg: "Only POST allowed" });
-  }
+  if (req.method !== 'POST') return res.status(405).json({ success: false, message: 'Only POST' });
 
-  const { email } = JSON.parse(req.body);
+  let body;
+  try { body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body; } catch(e){ body = req.body; }
+  const { email, code: providedCode } = body || {};
 
-  if (!email) {
-    return res.status(400).json({ msg: "email required" });
-  }
+  if (!email) return res.status(400).json({ success: false, message: 'email required' });
 
-  // 生成 6 位验证码
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  // 生成 code（如果前端已传 code 可使用；否则后端生成）
+  const code = providedCode || (Math.floor(100000 + Math.random() * 900000).toString());
 
-  // 保存 Supabase
-  await db.from("verification_codes").insert({
-    email,
-    code,
-    expire_at: new Date(Date.now() + 5 * 60 * 1000)  // 5 分钟后过期
-  });
-
-  // 选择邮箱
-  const sender = getRandomEmail();
-
-  // 构造 SMTP 客户端
-  const transporter = nodemailer.createTransport({
-    host: "smtp.163.com",
-    port: 465,
-    secure: true,
-    auth: sender
-  });
-
-  // 发送邮件
+  // 存储到 Supabase verification_codes 表（expire 5分钟）
   try {
-    await transporter.sendMail({
-      from: sender.user,
-      to: email,
-      subject: "你的验证码",
-      text: `你的登录验证码是：${code}\n5分钟内有效`
+    const expireAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+    const { error: insertErr } = await supabase
+      .from('verification_codes')
+      .insert([{ email, code, expire_at: expireAt }]);
+    if (insertErr) console.error('verification_codes insert err', insertErr);
+  } catch (err) {
+    console.error('Supabase insert error', err);
+    // 仍继续尝试发邮件，但应记录
+  }
+
+  const pool = buildEmailPool();
+  if (!pool.length) return res.status(500).json({ success: false, message: 'No mail accounts configured' });
+
+  // 尝试发送：随机选一个，失败则尝试其它（最多尝试 pool.length 次）
+  const tried = new Set();
+  let lastErr = null;
+
+  for (let attempt = 0; attempt < pool.length; attempt++) {
+    const candidate = pickRandom(pool);
+    if (tried.has(candidate.user)) continue;
+    tried.add(candidate.user);
+
+    const transporter = nodemailer.createTransport({
+      host: candidate.host,
+      port: 465,
+      secure: true,
+      auth: { user: candidate.user, pass: candidate.pass },
+      // 如果你需要调试可以加 logger: true
     });
 
-    return res.status(200).json({ msg: "验证码已发送" });
-  } catch (err) {
-    return res.status(500).json({ msg: "发送失败", error: err.toString() });
+    try {
+      await transporter.sendMail({
+        from: `"留言板" <${candidate.user}>`,
+        to: email,
+        subject: '留言板登录验证码',
+        text: `你的验证码是：${code}\n5分钟内有效。若非本人操作，请忽略。`
+      });
+      return res.status(200).json({ success: true, message: '验证码已发送' });
+    } catch (err) {
+      lastErr = err;
+      console.warn(`send failed with ${candidate.user}`, err && err.message);
+      // 尝试下一个账号
+    }
   }
+
+  // 全部失败
+  console.error('all mail sends failed', lastErr);
+  return res.status(500).json({ success: false, message: '所有邮件发送失败，请稍后重试' });
 }
