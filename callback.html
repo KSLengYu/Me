@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QQ 登录回调</title>
+</head>
+<body>
+  <h2>正在登录，请稍等...</h2>
+  <div id="info"></div>
+
+  <script>
+    const APPID = '你的水滴 AppID';
+    const APPKEY = '你的水滴 AppKey';
+
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    if (!code) {
+      document.getElementById('info').textContent = '登录失败：没有获取到 code';
+      throw new Error('No code in callback URL');
+    }
+
+    async function fetchUser() {
+      try {
+        const res = await fetch(`https://uniqueker.top/connect.php?act=callback&appid=${APPID}&appkey=${APPKEY}&type=qq&code=${code}`);
+        const data = await res.json();
+        console.log('登录返回数据:', data);
+
+        if (data.code !== 0) {
+          document.getElementById('info').textContent = '登录失败：' + data.msg;
+          return;
+        }
+
+        const { social_uid, nickname, faceimg } = data;
+        localStorage.setItem('social_uid', social_uid);
+        localStorage.setItem('nickname', nickname);
+        localStorage.setItem('avatar_url', faceimg);
+
+        document.getElementById('info').textContent = `登录成功，欢迎 ${nickname}`;
+        setTimeout(() => {
+          window.location.href = 'index.html';
+        }, 1500);
+      } catch (err) {
+        console.error(err);
+        document.getElementById('info').textContent = '登录失败：接口请求错误';
+      }
+    }
+
+    fetchUser();
+  </script>
+</body>
+</html>
