@@ -1,6 +1,5 @@
-import nodemailer from "nodemailer";
+const nodemailer = require("nodemailer");
 
-// 定义所有邮箱账号
 const accounts = [
   { host: process.env.SMTP_HOST_1, user: process.env.SMTP_USER_1, pass: process.env.SMTP_PASS_1 },
   { host: process.env.SMTP_HOST_2, user: process.env.SMTP_USER_2, pass: process.env.SMTP_PASS_2 },
@@ -10,12 +9,10 @@ const accounts = [
   { host: process.env.SMTP_HOST_QQ, user: process.env.SMTP_USER_QQ, pass: process.env.SMTP_PASS_QQ }
 ];
 
-// 随机选择一个邮箱账号
 function pickRandomAccount() {
   return accounts[Math.floor(Math.random() * accounts.length)];
 }
 
-// 创建 Nodemailer transporter
 function createTransporter(account) {
   return nodemailer.createTransport({
     host: account.host,
@@ -28,7 +25,7 @@ function createTransporter(account) {
   });
 }
 
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
   if (req.method !== "GET") {
     return res.status(405).json({ ok: false, error: "Method not allowed" });
   }
@@ -50,19 +47,14 @@ export default async function handler(req, res) {
       text: `你的验证码是：${code}，有效期 5 分钟`,
     });
 
-    globalThis.codes = globalThis.codes || {};
-    globalThis.codes[email] = code;
+    global.codes = global.codes || {};
+    global.codes[email] = code;
 
     console.log(`Email sent successfully via ${account.user}`);
     res.status(200).json({ ok: true });
 
   } catch (err) {
     console.error("SMTP send error:", err);
-
-    // 无论何种错误，都返回 JSON，避免前端解析失败
-    res.status(500).json({
-      ok: false,
-      error: "Send failed: " + (err.message || "Unknown error")
-    });
+    res.status(500).json({ ok: false, error: "Send failed: " + (err.message || "Unknown error") });
   }
-}
+};
