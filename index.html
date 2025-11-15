@@ -4,39 +4,44 @@
 <meta charset="UTF-8">
 <title>留言板</title>
 <style>
-body {
-  background: #111;
-  color: #fff;
-  font-family: Arial;
-  padding: 20px;
-}
-textarea {
-  width: 100%;
-  height: 100px;
-  border-radius: 6px;
-  padding: 10px;
-  margin-top: 10px;
-}
-button {
-  padding: 10px 20px;
-  background: #0084ff;
-  border: none;
-  color: #fff;
-  border-radius: 6px;
-  cursor: pointer;
-  margin-top: 10px;
-}
+body{margin:0;background:#111;color:#fff;font-family:Arial,sans-serif;padding:20px;}
+textarea{width:100%;height:100px;margin-top:10px;border-radius:6px;padding:10px;}
+button{padding:10px;background:#0084ff;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-top:10px;}
+.message{padding:10px;margin-top:10px;background:#222;border-radius:6px;}
 </style>
 </head>
 <body>
-<h1>留言板</h1>
-<textarea id="msg" placeholder="输入留言..."></textarea>
-<button onclick="postMessage()">发布</button>
+<h2>留言板</h2>
+<textarea id="msg" placeholder="输入留言"></textarea>
+<button id="send">发布留言</button>
+<div id="messages"></div>
 
 <script>
-function postMessage() {
-  alert("留言功能后续可以接 Supabase 保存数据");
+async function fetchMessages(){
+  const res=await fetch('https://YOUR_SUPABASE_URL/rest/v1/messages?select=*',{
+    headers:{'apikey':'YOUR_SUPABASE_ANON_KEY','Authorization':'Bearer YOUR_SUPABASE_ANON_KEY'}
+  });
+  const data=await res.json();
+  const container=document.getElementById('messages');
+  container.innerHTML='';
+  data.forEach(m=>{
+    const div=document.createElement('div'); div.className='message'; div.textContent=m.text; container.appendChild(div);
+  });
 }
+
+document.getElementById('send').onclick=async()=>{
+  const text=document.getElementById('msg').value.trim();
+  if(!text){ alert("请输入留言"); return; }
+  await fetch('https://YOUR_SUPABASE_URL/rest/v1/messages',{
+    method:'POST',
+    headers:{'apikey':'YOUR_SUPABASE_ANON_KEY','Authorization':'Bearer YOUR_SUPABASE_ANON_KEY','Content-Type':'application/json'},
+    body:JSON.stringify({text})
+  });
+  document.getElementById('msg').value='';
+  fetchMessages();
+}
+
+fetchMessages();
 </script>
 </body>
 </html>
