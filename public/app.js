@@ -1,117 +1,142 @@
-// ========== Supabase 初始化 ==========
-const SUPABASE_URL = "https://lhncuzhymmplnbtqiroh.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxobmN1emh5bW1wbG5idHFpcm9oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMxODU0NTUsImV4cCI6MjA3ODc2MTQ1NX0.cOdgp2PG7bf3PfF3Gg48e2gOGviM_HGH9KMSiiV3V-o";
+import express from "express";
+import cors from "cors";
+import nodemailer from "nodemailer";
+import dotenv from "dotenv";
+import { createClient } from "@supabase/supabase-js";
 
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+dotenv.config();
+const app = express();
 
-// ========== 登录页面逻辑 ==========
-const sendBtn = document.getElementById('sendBtn');
-const loginBtn = document.getElementById('loginBtn');
-const emailInput = document.getElementById('email');
-const codeInput = document.getElementById('code');
-const msgP = document.getElementById('msg');
+app.use(cors());
+app.use(express.json());
 
-let tempCode = '';
+// -----------------------------
+//  Supabase
+// -----------------------------
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_ANON_KEY
+);
 
-if (sendBtn) {
-  sendBtn.addEventListener('click', async () => {
-    const email = emailInput.value.trim();
-    if (!email) {
-      msgP.textContent = '请输入邮箱';
-      return;
-    }
-    tempCode = Math.floor(100000 + Math.random() * 900000).toString();
+// -----------------------------
+//  邮箱池（随机选择）
+// -----------------------------
+const emailPool = [
+  {
+    host: "smtp.163.com",
+    port: 465,
+    secure: true,
+    user: process.env.EMAIL_163_1,
+    pass: process.env.EMAIL_163_1_PASS
+  },
+  {
+    host: "smtp.163.com",
+    port: 465,
+    secure: true,
+    user: process.env.EMAIL_163_2,
+    pass: process.env.EMAIL_163_2_PASS
+  },
+  {
+    host: "smtp.163.com",
+    port: 465,
+    secure: true,
+    user: process.env.EMAIL_163_3,
+    pass: process.env.EMAIL_163_3_PASS
+  },
+  {
+    host: "smtp.163.com",
+    port: 465,
+    secure: true,
+    user: process.env.EMAIL_163_4,
+    pass: process.env.EMAIL_163_4_PASS
+  },
+  {
+    host: "smtp.163.com",
+    port: 465,
+    secure: true,
+    user: process.env.EMAIL_163_5,
+    pass: process.env.EMAIL_163_5_PASS
+  },
+  {
+    host: "smtp.qq.com",
+    port: 465,
+    secure: true,
+    user: process.env.EMAIL_QQ,
+    pass: process.env.EMAIL_QQ_PASS
+  }
+];
 
-    sendBtn.disabled = true;
-    msgP.textContent = '发送中...';
-
-    const res = await fetch('/api/sendCode', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: email, code: tempCode })
-    });
-    const data = await res.json();
-    if (data.success) {
-      msgP.textContent = '验证码已发送';
-    } else {
-      msgP.textContent = '发送失败：' + (data.message || '');
-    }
-    sendBtn.disabled = false;
-  });
-
-  loginBtn.addEventListener('click', async () => {
-    const email = emailInput.value.trim();
-    const entered = codeInput.value.trim();
-    if (entered !== tempCode) {
-      msgP.textContent = '验证码错误';
-      return;
-    }
-
-    // 登录通过，保存邮箱
-    localStorage.setItem('loggedIn', 'true');
-    localStorage.setItem('userEmail', email);
-
-    // 写入 profiles 表
-    const { error: upsertErr } = await supabase
-      .from('profiles')
-      .upsert({ email: email }, { onConflict: ['email'] });
-    if (upsertErr) {
-      console.error('写入 profiles 失败', upsertErr);
-    }
-
-    window.location.href = 'index.html';
-  });
+// 随机选择一个邮箱
+function getRandomEmail() {
+  const index = Math.floor(Math.random() * emailPool.length);
+  return emailPool[index];
 }
 
-// ========== 留言板逻辑 ==========
-const logged = localStorage.getItem('loggedIn');
-if (logged && document.getElementById('messages')) {
-  // 在 index.html 上
-  const messagesDiv = document.getElementById('messages');
-  const sendMsgBtn = document.getElementById('sendMsgBtn');
-  const messageInput = document.getElementById('messageInput');
+// -----------------------------
+//  发送验证码
+// -----------------------------
+app.post("/send-code", async (req, res) => {
+  const { email } = req.body;
 
-  async function loadMessages() {
-    const { data, error } = await supabase
-      .from('messages')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (error) {
-      console.error('获取留言失败', error);
-      return;
-    }
-    messagesDiv.innerHTML = '';
-    data.forEach(msg => {
-      const div = document.createElement('div');
-      div.className = 'msg';
-      div.innerHTML = `<strong>${msg.user_email}</strong><br>${msg.content}`;
-      messagesDiv.appendChild(div);
-    });
-  }
-  loadMessages();
+  if (!email) return res.json({ ok: false, msg: "缺少 email" });
 
-  sendMsgBtn.addEventListener('click', async () => {
-    const content = messageInput.value.trim();
-    if (!content) {
-      alert('留言不能为空');
-      return;
-    }
-    const user_email = localStorage.getItem('userEmail') || '';
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
 
-    const { error } = await supabase
-      .from('messages')
-      .insert([{ user_email, content }]);
-    if (error) {
-      alert('发送失败：' + error.message);
-    } else {
-      messageInput.value = '';
-      loadMessages();
-    }
+  // 随机选一个邮箱发送
+  const sender = getRandomEmail();
+  const transporter = nodemailer.createTransport({
+    host: sender.host,
+    port: sender.port,
+    secure: sender.secure,
+    auth: { user: sender.user, pass: sender.pass }
   });
-} else {
-  // 未登录情况
-  if (document.getElementById('content')) {
-    window.location.href = 'login.html';
+
+  try {
+    await transporter.sendMail({
+      from: sender.user,
+      to: email,
+      subject: "您的验证码",
+      text: `您的验证码是：${code}`,
+    });
+
+    // 存入 Supabase
+    await supabase.from("verification_codes").insert({
+      email,
+      code,
+      created_at: new Date()
+    });
+
+    res.json({ ok: true, msg: "验证码已发送" });
+  } catch (err) {
+    console.error(err);
+    res.json({ ok: false, msg: "发送失败" });
   }
-}
+});
+
+// -----------------------------
+//  验证验证码是否正确
+// -----------------------------
+app.post("/verify-code", async (req, res) => {
+  const { email, code } = req.body;
+
+  if (!email || !code) return res.json({ ok: false, msg: "缺少参数" });
+
+  const { data, error } = await supabase
+    .from("verification_codes")
+    .select("*")
+    .eq("email", email)
+    .eq("code", code)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (error || data.length === 0) {
+    return res.json({ ok: false, msg: "验证码错误" });
+  }
+
+  res.json({ ok: true, msg: "验证成功" });
+});
+
+// -----------------------------
+app.listen(3000, () => {
+  console.log("服务器已运行在 http://localhost:3000");
+});
