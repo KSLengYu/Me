@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>登录</title>
+<style>
+    body {
+        background: #fafafa;
+        padding: 20px;
+        font-family: Arial;
+    }
+    input { padding: 10px; width: 100%; margin-top: 15px; border-radius: 6px; border: 1px solid #ccc; }
+    button { margin-top: 15px; padding: 10px; width: 100%; background: #4a90e2; border: none; color: white; border-radius: 6px; }
+</style>
+</head>
+<body>
+
+<h2>邮箱验证码登录</h2>
+
+<input id="email" placeholder="你的邮箱">
+<input id="code" placeholder="验证码">
+
+<button onclick="sendCode()">获取验证码</button>
+<button onclick="login()">登录</button>
+
+<script src="app.js"></script>
+</body>
+</html>
